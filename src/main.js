@@ -876,8 +876,23 @@ async function poll() {
   const barKey = JSON.stringify(npForBar());
   if (barKey !== lastBarNp) { lastBarNp = barKey; for (const h of hosts) h.updateBar(); }
   updateThumbar();
-  discord.update(nowPlaying);
+  discord.update(discordNow(tabs, states, idx));
   overlay.update(nowPlaying);
+}
+
+// Ce que Discord affiche : comme la barre, sauf les plateformes exclues par l'édition (Studio : Twitch et X).
+// Si une plateforme exclue joue, on montre une autre qui joue (ta musique, par exemple), sinon rien.
+const npOf = (t, st) => ({
+  title: null, artist: null, album: null, art: null, playing: false, position: null, duration: null,
+  ...(st || {}),
+  platform: { id: t.p.id, name: t.p.name, accent: t.p.accent, color: t.p.color, kind: t.p.kind },
+});
+function discordNow(tabs, states, idx) {
+  const hidden = new Set(EDITION.discordExclude || []);
+  if (!hidden.size) return nowPlaying;
+  if (idx >= 0 && !hidden.has(tabs[idx].p.id)) return nowPlaying;
+  const other = tabs.findIndex((t, i) => !hidden.has(t.p.id) && states[i] && states[i].playing);
+  return other >= 0 ? npOf(tabs[other], states[other]) : { title: null, playing: false };
 }
 
 function sendToMini(np) {
@@ -1312,7 +1327,7 @@ if (process.env.STUDIO_TEST) {
   global.__studioTest = {
     open, detach, attach, closeTab, setTabsMode, poll, goHome, leaveHome, goBack, goForward, reloadActive, mediaAction, npForBar,
     setFloating, toggleWindowFullscreen, pauseAll, ua: CHROME_UA, trayLabels: () => lastTrayLabels,
-    toggleMini, openPlaylists, edition: EDITION, platforms: PLATFORMS,
+    toggleMini, openPlaylists, edition: EDITION, platforms: PLATFORMS, discord,
     hosts: () => [...hosts], main: () => mainHost, tabs: allTabs, nowTab: () => nowTab, state: () => state,
   };
 }

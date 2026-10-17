@@ -61,10 +61,13 @@ const EDITIONS = {
     ],
     sections: true,
     pickerTitle: 'Qu\'est-ce qu\'on lance ?',
-    discordId: '',
+    // ID de l'appli Discord « Studio » (pas un secret)
+    discordId: '1560839370121019423',
+    // jamais affichés sur Discord
+    discordExclude: ['twitch', 'x'],
     features: { playlists: true, overlay: true, mini: true, floating: true },
     // pauses : seulement les vidéos et X (la musique continue toujours)
-    defaults: { pauseOnSwitch: true, pauseOnClose: true, discord: false },
+    defaults: { pauseOnSwitch: true, pauseOnClose: true, discord: true },
   },
 };
 
