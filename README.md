@@ -33,7 +33,7 @@ Chaque appli fait tourner le **site officiel** de chaque plateforme, avec le mod
 - **Lecture / pause** dans la barre et dans l'aperçu de la barre des tâches, touches multimédia.
 - **Ne plante plus** : une page qui crashe ou fige est relancée là où tu étais ; une page de connexion ou un cache abîmé est réparé tout seul.
 - **Discord**, **mises à jour automatiques**, **lancement au démarrage de Windows**.
-- **Sécurité** : tes mots de passe ne passent jamais par l'appli (tu te connectes sur les vraies pages des sites) ; les cookies de connexion sont chiffrés par Windows comme dans Chrome ; aucune donnée n'est envoyée ailleurs.
+- **Sécurité** : tes mots de passe ne passent jamais par l'appli (tu te connectes sur les vraies pages des sites) et aucune donnée n'est envoyée ailleurs.
 
 **Musique (Platine, Studio)**
 - **Mini-lecteur** (`Ctrl + Maj + M`), **overlay OBS**, **Playlists** Tidal / Spotify avec transfert et sauvegarde (`Ctrl + Maj + L`).
