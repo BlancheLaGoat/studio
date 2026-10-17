@@ -1,0 +1,59 @@
+{
+  "name": "studio-suite",
+  "productName": "Studio",
+  "version": "2.0.0",
+  "description": "Platine (musique), Pellicule (vidéo) et Studio (tout) : un seul code pour trois applis desktop stables.",
+  "main": "src/main.js",
+  "author": "BlancheLaGoat",
+  "license": "MIT",
+  "scripts": {
+    "start": "node scripts/start.js studio",
+    "start:platine": "node scripts/start.js platine",
+    "start:pellicule": "node scripts/start.js pellicule",
+    "dist": "node scripts/build.js studio",
+    "dist:platine": "node scripts/build.js platine",
+    "dist:pellicule": "node scripts/build.js pellicule",
+    "dist:all": "node scripts/build.js all"
+  },
+  "devDependencies": {
+    "electron": "https://github.com/castlabs/electron-releases#v44.5.1+wvcus",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "electronVersion": "44.5.1",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "afterSign": "./scripts/evs-sign.js",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "electronDownload": {
+      "version": "44.5.1+wvcus",
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "@xhayper/discord-rpc": "^1.5.1"
+  }
+}

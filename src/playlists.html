@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Playlists</title>
+<style>
+  :root {
+    --bg: #0b0b0d; --panel: #131317; --card: #17171c; --line: #26262d; --hover: #1d1d23;
+    --text: #f2f2f4; --muted: #8d8d97; --dim: #5c5c66;
+    --accent: #33ffee; --danger: #ff6b6b; --ok: #3ddc84; --warn: #ffb547;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.4 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px;
+    border-radius: 9px; background: #ffffff10; border: 1px solid var(--line); font-weight: 600; font-size: 13px;
+    transition: background .12s, border-color .12s;
+  }
+  .btn:hover { background: #ffffff18; }
+  .btn.primary { background: var(--accent); color: #08080a; border-color: transparent; }
+  .btn.primary:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
+  .btn.ghost { background: none; border-color: transparent; color: var(--muted); }
+  .btn.ghost:hover { color: var(--text); background: #ffffff0c; }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  header {
+    display: flex; align-items: center; gap: 14px; padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; margin-right: 8px; }
+  .tabs { display: flex; gap: 6px; }
+  .tab {
+    display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 99px;
+    border: 1px solid var(--line); color: var(--muted); font-weight: 600; font-size: 13px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-color: var(--tab-accent); background: color-mix(in srgb, var(--tab-accent) 12%, transparent); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+  .dot.on { background: var(--ok); }
+  header .spacer { flex: 1; }
+
+  .bar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 22px; color: var(--muted); font-size: 13px;
+  }
+  .bar b { color: var(--text); font-weight: 600; }
+  .bar .spacer { flex: 1; }
+  .search {
+    height: 32px; width: 220px; border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+    color: var(--text); padding: 0 10px; font: inherit; font-size: 13px; outline: none;
+  }
+  .search:focus { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+
+  main { flex: 1; overflow: auto; padding: 0 14px 90px; }
+  .row {
+    display: grid; grid-template-columns: 28px 46px 1fr auto auto; align-items: center; gap: 12px;
+    padding: 8px; border-radius: 10px;
+  }
+  .row:hover { background: var(--hover); }
+  .row.off { opacity: .45; }
+  .row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); justify-self: center; cursor: pointer; }
+  .cover {
+    width: 46px; height: 46px; border-radius: 7px; background: #22222a center/cover no-repeat;
+    display: grid; place-items: center; color: var(--dim);
+  }
+  .cover.fav { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 70%, #6a3cff), #2a1b5e); color: #fff; }
+  .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub { color: var(--muted); font-size: 12.5px; }
+  .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; white-space: nowrap; }
+
+  .menu-wrap { position: relative; }
+  .menu {
+    position: absolute; right: 0; top: 38px; z-index: 5; min-width: 200px;
+    background: #1b1b21; border: 1px solid var(--line); border-radius: 10px; padding: 6px;
+    box-shadow: 0 12px 30px #0008; display: none;
+  }
+  .menu.open { display: block; }
+  .menu.up { top: auto; bottom: 40px; }
+  .menu button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; text-align: left; }
+  .menu button:hover { background: #ffffff10; }
+  .menu .dis { color: var(--dim); padding: 8px 10px; font-size: 12.5px; }
+
+  .empty { display: grid; place-items: center; height: 100%; padding: 40px; }
+  .empty .box { max-width: 460px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .empty h2 { font-size: 18px; }
+  .empty p { color: var(--muted); }
+  .empty code { background: #ffffff10; padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
+  .err { color: var(--danger); }
+  .spinner { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid #ffffff22; border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .selbar {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(120px);
+    display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px;
+    background: #1b1b21; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 40px #000a;
+    transition: transform .2s ease;
+  }
+  .selbar.show { transform: translateX(-50%) translateY(0); }
+
+  /* fenêtre de progression / rapport */
+  .modal { position: fixed; inset: 0; background: #000b; display: none; place-items: center; z-index: 20; }
+  .modal.show { display: grid; }
+  .sheet {
+    width: min(620px, 92vw); max-height: 86vh; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
+  }
+  .sheet .head { padding: 18px 20px 6px; }
+  .sheet h3 { font-size: 17px; }
+  .sheet .body { padding: 10px 20px; overflow: auto; }
+  .sheet .foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); }
+  .prog { height: 6px; border-radius: 3px; background: #ffffff14; overflow: hidden; margin: 8px 0 4px; }
+  .prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .res { border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; overflow: hidden; }
+  .res summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; }
+  .res summary::-webkit-details-marker { display: none; }
+  .res .n { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill { font-size: 12px; padding: 2px 9px; border-radius: 99px; background: #ffffff10; white-space: nowrap; }
+  .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--danger); }
+  .res ul { padding: 0 14px 10px 32px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Playlists</h1>
+    <div class="tabs" id="tabs"></div>
+    <div class="spacer"></div>
+    <button class="btn" id="backupBtn" title="Enregistre toutes les playlists de cet onglet dans un fichier (JSON + CSV)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+      Sauvegarder
+    </button>
+  </header>
+  <div class="bar" id="bar"></div>
+  <main id="main"></main>
+
+  <div class="selbar" id="selbar">
+    <span id="selText"></span>
+    <button class="btn ghost" id="selClear">Tout décocher</button>
+    <div class="menu-wrap">
+      <button class="btn primary" id="selGo">Transférer vers…</button>
+      <div class="menu up" id="selMenu"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+
+<script>
+  const APP = new URLSearchParams(location.search).get('app') || 'Studio';
+  document.title = document.title + ' — ' + APP;
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
+
+  let services = [];
+  let current = null;
+  const cache = {};          // id -> playlists
+  const selected = new Set();
+  let filter = '';
+
+  async function refreshServices() {
+    services = await window.pl.services();
+    if (!current || !services.find(s => s.id === current)) current = (services.find(s => s.connected) || services[0]).id;
+    renderTabs();
+  }
+
+  function renderTabs() {
+    const tabs = $('tabs');
+    tabs.replaceChildren();
+    for (const s of services) {
+      const t = el('button', 'tab' + (s.id === current ? ' active' : ''));
+      t.style.setProperty('--tab-accent', s.accent);
+      t.append(el('span', 'dot' + (s.connected ? ' on' : '')), el('span', null, s.name));
+      t.onclick = () => { current = s.id; selected.clear(); renderTabs(); load(); };
+      tabs.append(t);
+    }
+    const svc = services.find(s => s.id === current);
+    document.documentElement.style.setProperty('--accent', svc ? svc.accent : '#33ffee');
+    $('backupBtn').disabled = !(svc && svc.connected);
+  }
+
+  function renderBar(svc, lists) {
+    const bar = $('bar');
+    bar.replaceChildren();
+    if (!svc.connected) return;
+    const who = el('span');
+    who.append('Connecté en tant que ', el('b', null, svc.user || svc.name));
+    if (lists) who.append(` · ${plural(lists.filter(p => p.kind !== 'favorites').length, 'playlist')}`);
+    const search = el('input', 'search');
+    search.placeholder = 'Filtrer…';
+    search.value = filter;
+    search.oninput = () => { filter = search.value; renderList(svc, cache[svc.id]); };
+    const all = el('button', 'btn ghost', 'Tout cocher');
+    all.onclick = () => {
+      const f = filter.trim().toLowerCase();
+      (cache[svc.id] || []).filter(p => p.readable && (!f || (p.name || '').toLowerCase().includes(f))).forEach(p => selected.add(p.id));
+      renderList(svc, cache[svc.id]); updateSel();
+    };
+    const reload = el('button', 'btn ghost', 'Actualiser');
+    reload.onclick = () => { delete cache[svc.id]; load(); };
+    const out = el('button', 'btn ghost', 'Se déconnecter');
+    out.onclick = async () => { await window.pl.disconnect(svc.id); delete cache[svc.id]; selected.clear(); await refreshServices(); load(); };
+    bar.append(who, el('span', 'spacer'), search, ...(lists ? [all] : []), reload, out);
+  }
+
+  async function load() {
+    const svc = services.find(s => s.id === current);
+    const main = $('main');
+    renderBar(svc);
+    updateSel();
+
+    if (!svc.configured) {
+      main.replaceChildren(emptyBox(`${svc.name} n'est pas encore configuré`,
+        [`Crée une appli développeur ${svc.name} (gratuit), ajoute l'adresse de redirection `, code('http://127.0.0.1:4849/callback'),
+         `, puis colle son « Client ID » dans `, code('src/config.js'), ` (${svc.id.toUpperCase()}_CLIENT_ID).`],
+        `Ouvrir le portail ${svc.name}`, () => window.pl.openPortal(svc.id)));
+      return;
+    }
+    if (!svc.connected) {
+      main.replaceChildren(emptyBox(`Connecte ton compte ${svc.name}`,
+        [`La connexion s'ouvre dans ton navigateur. ${APP} pourra lire tes playlists et en créer de nouvelles, sans jamais rien supprimer.`],
+        `Connecter ${svc.name}`, async btn => {
+          btn.disabled = true; btn.textContent = 'Connexion dans le navigateur…';
+          const r = await window.pl.connect(svc.id);
+          if (!r.ok) { btn.disabled = false; btn.textContent = `Connecter ${svc.name}`; showError(r.error); return; }
+          await refreshServices(); load();
+        }));
+      return;
+    }
+
+    if (!cache[svc.id]) {
+      const wrap = el('div', 'empty'); const b = el('div', 'box');
+      b.append(el('div', 'spinner'), el('p', null, 'Chargement de tes playlists…'));
+      wrap.append(b); main.replaceChildren(wrap);
+      const r = await window.pl.list(svc.id);
+      if (current !== svc.id) return;
+      if (!r.ok) {
+        main.replaceChildren(emptyBox('Impossible de charger les playlists', [el('span', 'err', r.error)], 'Réessayer', () => load()));
+        if (/reconnecte/i.test(r.error)) { await refreshServices(); }
+        return;
+      }
+      cache[svc.id] = r.playlists;
+    }
+    renderBar(svc, cache[svc.id]);
+    renderList(svc, cache[svc.id]);
+  }
+
+  const code = t => el('code', null, t);
+
+  function emptyBox(title, parts, action, onAction) {
+    const wrap = el('div', 'empty'); const b = el('div', 'box');
+    const p = el('p'); parts.forEach(x => p.append(x));
+    b.append(el('h2', null, title), p);
+    if (action) { const btn = el('button', 'btn primary', action); btn.onclick = () => onAction(btn); b.append(btn); }
+    wrap.append(b);
+    return wrap;
+  }
+
+  function targetsFor(fromId) {
+    return services.filter(s => s.id !== fromId);
+  }
+
+  function fillMenu(menu, fromId, getPlaylists) {
+    menu.replaceChildren();
+    const ts = targetsFor(fromId);
+    if (!ts.length) { menu.append(el('div', 'dis', 'Aucune autre plateforme disponible')); return; }
+    for (const t of ts) {
+      if (!t.connected) {
+        const d = el('div', 'dis', `${t.name} — à connecter d'abord`);
+        menu.append(d);
+        continue;
+      }
+      const b = el('button');
+      const dot = el('span', 'dot on'); dot.style.background = t.accent;
+      b.append(dot, el('span', null, t.name));
+      b.onclick = () => { closeMenus(); startTransfer(fromId, t.id, getPlaylists()); };
+      menu.append(b);
+    }
+  }
+
+  function closeMenus() { document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open')); }
+  document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) closeMenus(); });
+
+  function renderList(svc, lists) {
+    const main = $('main');
+    main.replaceChildren();
+    const f = filter.trim().toLowerCase();
+    const shown = lists.filter(p => !f || (p.name || '').toLowerCase().includes(f));
+    if (!shown.length) { main.append(emptyBox(f ? 'Aucune playlist ne correspond' : 'Aucune playlist', [], null)); return; }
+
+    for (const p of shown) {
+      const row = el('div', 'row' + (p.readable ? '' : ' off'));
+      const cb = el('input'); cb.type = 'checkbox'; cb.disabled = !p.readable; cb.checked = selected.has(p.id);
+      cb.onchange = () => { cb.checked ? selected.add(p.id) : selected.delete(p.id); updateSel(); };
+
+      const cover = el('div', 'cover' + (p.kind === 'favorites' ? ' fav' : ''));
+      if (p.cover) cover.style.backgroundImage = `url("${p.cover}")`;
+      else cover.innerHTML = p.kind === 'favorites'
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2 4.4-9.5 9-9.5 9z"/></svg>'
+        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>';
+
+      const info = el('div'); info.style.minWidth = '0';
+      info.append(el('div', 'name', p.name || '(sans nom)'),
+        el('div', 'sub', p.count == null ? (p.kind === 'favorites' ? 'Tous tes titres aimés' : '') : plural(p.count, 'titre')));
+
+      const tag = el('span');
+      if (!p.readable) { tag.className = 'tag'; tag.textContent = 'Contenu non accessible'; tag.title = `${svc.name} ne permet de lire que tes propres playlists.`; }
+      else if (!p.owned) { tag.className = 'tag'; tag.textContent = 'Suivie'; }
+
+      const wrap = el('div', 'menu-wrap');
+      const btn = el('button', 'btn', 'Transférer vers…'); btn.disabled = !p.readable;
+      const menu = el('div', 'menu');
+      btn.onclick = e => {
+        e.stopPropagation();
+        const open = menu.classList.contains('open');
+        closeMenus();
+        if (!open) {
+          fillMenu(menu, svc.id, () => [p]);
+          menu.classList.toggle('up', btn.getBoundingClientRect().bottom > innerHeight - 180);
+          menu.classList.add('open');
+        }
+      };
+      wrap.append(btn, menu);
+      row.append(cb, cover, info, tag, wrap);
+      main.append(row);
+    }
+  }
+
+  function updateSel() {
+    const n = selected.size;
+    $('selbar').classList.toggle('show', n > 0);
+    $('selText').textContent = `${plural(n, 'playlist')} ${n > 1 ? 'sélectionnées' : 'sélectionnée'}`;
+  }
+  $('selClear').onclick = () => { selected.clear(); renderList(services.find(s => s.id === current), cache[current]); updateSel(); };
+  $('selGo').onclick = e => {
+    e.stopPropagation();
+    const menu = $('selMenu');
+    const open = menu.classList.contains('open');
+    closeMenus();
+    if (!open) {
+      fillMenu(menu, current, () => (cache[current] || []).filter(p => selected.has(p.id)));
+      menu.classList.add('open');
+    }
+  };
+
+  // ---------------- Transfert ----------------
+  const PHASES = { lecture: 'Lecture des titres', recherche: 'Recherche des correspondances', création: 'Création de la playlist', ajout: 'Ajout des titres', terminé: 'Terminé' };
+
+  function sheet(build) {
+    const s = $('sheet'); s.replaceChildren(); build(s); $('modal').classList.add('show');
+  }
+  function closeSheet() { $('modal').classList.remove('show'); }
+
+  function showError(msg) {
+    sheet(s => {
+      const h = el('div', 'head'); h.append(el('h3', null, 'Oups'));
+      const b = el('div', 'body'); b.append(el('p', 'err', msg));
+      const f = el('div', 'foot'); const ok = el('button', 'btn', 'Fermer'); ok.onclick = closeSheet; f.append(ok);
+      s.append(h, b, f);
+    });
+  }
+
+  async function startTransfer(from, to, playlists) {
+    if (!playlists.length) return;
+    const fromName = services.find(s => s.id === from).name;
+    const toName = services.find(s => s.id === to).name;
+    let overall, cur, phase, bar, allBar;
+    sheet(s => {
+      const h = el('div', 'head');
+      h.append(el('h3', null, `${fromName} → ${toName}`), el('div', 'muted', plural(playlists.length, 'playlist')));
+      const b = el('div', 'body');
+      cur = el('div', 'name', playlists[0].name);
+      phase = el('div', 'muted', 'Préparation…');
+      bar = el('div', 'prog'); bar.append(el('i'));
+      overall = el('div', 'muted');
+      allBar = el('div', 'prog'); allBar.append(el('i'));
+      b.append(cur, phase, bar, el('div', null, ' '), overall, allBar);
+      const f = el('div', 'foot');
+      const c = el('button', 'btn', 'Annuler'); c.onclick = () => { c.disabled = true; c.textContent = 'Annulation…'; window.pl.cancel(); };
+      f.append(c);
+      s.append(h, b, f);
+    });
+    const off = window.pl.onProgress(p => {
+      cur.textContent = p.name;
+      const count = p.count == null ? '' : ` — ${p.done} / ${p.count}`;
+      phase.textContent = (PHASES[p.phase] || p.phase) + (p.count == null && p.phase === 'lecture' ? ` — ${p.done}` : count);
+      bar.firstChild.style.width = p.count ? Math.min(100, p.done / p.count * 100) + '%' : '15%';
+      overall.textContent = `Playlist ${p.index + 1} sur ${p.total}`;
+      const within = p.phase === 'terminé' ? 1 : p.phase === 'ajout' ? .9 : p.phase === 'création' ? .85 : p.phase === 'recherche' && p.count ? .1 + .75 * p.done / p.count : .05;
+      allBar.firstChild.style.width = ((p.index + within) / p.total * 100) + '%';
+    });
+    const r = await window.pl.transfer({ from, to, playlists });
+    off();
+    if (!r.ok) return showError(r.error);
+    showReport(r.report, to);
+  }
+
+  function showReport(report, to) {
+    delete cache[to]; // les nouvelles playlists apparaîtront à la prochaine visite de l'onglet
+    sheet(s => {
+      const h = el('div', 'head');
+      const totalFound = report.playlists.reduce((a, p) => a + p.found, 0);
+      const total = report.playlists.reduce((a, p) => a + p.total, 0);
+      h.append(el('h3', null, report.error ? (report.cancelled ? 'Transfert annulé' : 'Transfert interrompu') : 'Transfert terminé'),
+        el('div', 'muted', `${report.from} → ${report.to} · ${totalFound} / ${total} titres retrouvés`));
+      const b = el('div', 'body');
+      if (report.error && !report.cancelled) b.append(el('p', 'err', report.error));
+      for (const p of report.playlists) {
+        const d = el('details', 'res');
+        const sm = el('summary');
+        const pct = p.total ? p.found / p.total : 1;
+        sm.append(el('span', 'n', p.name),
+          el('span', 'pill ' + (pct === 1 ? 'ok' : pct >= .9 ? 'warn' : 'bad'), `${p.found} / ${p.total}`));
+        if (!p.created && p.total) sm.append(el('span', 'pill bad', 'non créée'));
+        d.append(sm);
+        if (p.missing.length) {
+          const ul = el('ul');
+          for (const m of p.missing) ul.append(el('li', null, `${m.title} — ${(m.artists || []).join(', ')}`));
+          d.append(ul);
+        } else d.append(el('ul', null, 'Tous les titres ont été retrouvés.'));
+        b.append(d);
+      }
+      const f = el('div', 'foot');
+      const save = el('button', 'btn', 'Enregistrer le rapport');
+      save.onclick = async () => { const r = await window.pl.saveReport(report); if (r.ok) save.textContent = 'Rapport enregistré'; };
+      const ok = el('button', 'btn primary', 'Fermer'); ok.onclick = closeSheet;
+      f.append(save, ok);
+      s.append(h, b, f);
+    });
+  }
+
+  // ---------------- Sauvegarde ----------------
+  $('backupBtn').onclick = async () => {
+    const svc = services.find(s => s.id === current);
+    let line, bar;
+    sheet(s => {
+      const h = el('div', 'head'); h.append(el('h3', null, `Sauvegarde de tes playlists ${svc.name}`));
+      const b = el('div', 'body'); line = el('div', 'muted', 'Préparation…'); bar = el('div', 'prog'); bar.append(el('i'));
+      b.append(line, bar);
+      s.append(h, b, el('div', 'foot'));
+    });
+    const off = window.pl.onBackupProgress(p => {
+      line.textContent = `${p.index + 1} / ${p.total} — ${p.name}`;
+      bar.firstChild.style.width = ((p.index + 1) / p.total * 100) + '%';
+    });
+    const r = await window.pl.backup(svc.id);
+    off();
+    if (!r.ok) return showError(r.error);
+    if (r.cancelled) return closeSheet();
+    sheet(s => {
+      const h = el('div', 'head'); h.append(el('h3', null, 'Sauvegarde enregistrée'));
+      const b = el('div', 'body');
+      b.append(el('p', 'muted', `${plural(r.playlists, 'playlist')} et ${plural(r.tracks, 'titre')} enregistrés dans :`),
+        el('p', null, r.path), el('p', 'muted', 'Un fichier .csv (lisible dans Excel) a été créé à côté.'));
+      const f = el('div', 'foot'); const ok = el('button', 'btn primary', 'Fermer'); ok.onclick = closeSheet; f.append(ok);
+      s.append(h, b, f);
+    });
+  };
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('modal').classList.contains('show') && $('sheet').querySelector('.btn.primary')) closeSheet(); });
+
+  refreshServices().then(load);
+</script>
+</body>
+</html>
