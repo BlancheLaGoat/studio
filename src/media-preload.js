@@ -91,11 +91,9 @@ if (adskip && isTwitch) webFrame.executeJavaScript(`(() => {
 if (adskip && isX) webFrame.executeJavaScript(`(() => {
   if (window.__studioXAds) return;
   window.__studioXAds = true;
-  // mentions affichées par X sur un post sponsorisé, selon la langue
-  const LABELS = new Set(['Ad', 'Ads', 'Promoted', 'Sponsored', 'Sponsorisé', 'Sponsorisée', 'Publicité', 'Promu', 'Promue',
-    'Anzeige', 'Gesponsert', 'Patrocinado', 'Promocionado', 'Publicidad', 'Sponsorizzato', 'Annuncio', 'Promovido']);
-  const PREFIX = /^(Promoted by|Sponsored by|Sponsorisé par|Promu par|Gesponsert von|Promocionado por|Patrocinado por)\\b/i;
-
+  // mentions affichées par X sur un post sponsorisé, selon la langue (singulier, pluriel, féminin, majuscules)
+  const LABEL = /^(ads?|publicit[ée]s?|sponsoris[ée]e?s?|sponsored|promoted|promue?s?|anzeigen?|gesponsert|werbung|patrocinados?|promocionados?|publicidad|sponsorizzat[oa]|annuncio|promovidos?|広告|프로모션)$/i;
+  const PREFIX = /^(Promoted by|Sponsored by|Sponsorisée? par|Promue? par|Gesponsert von|Promocionado por|Patrocinado por)\\b/i;
   const CSS = [
     '[data-testid="sidebarColumn"] [aria-label*="Premium"]',
     '[data-testid="sidebarColumn"] a[href="/i/premium_sign_up"]',
@@ -119,7 +117,7 @@ if (adskip && isX) webFrame.executeJavaScript(`(() => {
       if (el.childElementCount) continue;
       const t = (el.textContent || '').trim();
       if (t.length > 40 || !t) continue;
-      if (LABELS.has(t) || PREFIX.test(t)) return true;
+      if (LABEL.test(t) || PREFIX.test(t)) return true;
     }
     return false;
   };
