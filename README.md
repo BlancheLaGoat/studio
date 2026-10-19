@@ -32,7 +32,7 @@ Chaque appli fait tourner le **site officiel** de chaque plateforme, avec le mod
 - **YouTube sans pubs** (son coupé, accéléré, clic automatique sur « Passer ») et **Twitch sans pubs** ([TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions), MIT).
 - **Lecture / pause** dans la barre et dans l'aperçu de la barre des tâches, touches multimédia.
 - **Ne plante plus** : une page qui crashe ou fige est relancée là où tu étais ; une page de connexion ou un cache abîmé est réparé tout seul.
-- **Discord**, **mises à jour automatiques**, **lancement au démarrage de Windows**.
+- **Discord**, **mises à jour automatiques**, **lancement au démarrage de Windows** (l'appli s'ouvre sur l'accueil : aucun live ni vidéo ne démarre tout seul ; option « Rouvrir mes onglets au lancement » dans le menu de l'icône).
 - **Sécurité** : tes mots de passe ne passent jamais par l'appli (tu te connectes sur les vraies pages des sites) et aucune donnée n'est envoyée ailleurs.
 
 **Musique (Platine, Studio)**

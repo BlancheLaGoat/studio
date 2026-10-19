@@ -1218,6 +1218,12 @@ function buildTrayMenu() {
     },
     { type: 'separator' },
     {
+      label: 'Rouvrir mes onglets au lancement',
+      type: 'checkbox',
+      checked: !!state.restoreTabs,
+      click: item => { state.restoreTabs = item.checked; saveState(); buildTrayMenu(); },
+    },
+    {
       label: 'Lancer au démarrage de Windows',
       type: 'checkbox',
       checked: app.isPackaged && startsWithWindows(),
@@ -1289,8 +1295,9 @@ if (!app.requestSingleInstanceLock()) {
     tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 16 }));
     tray.on('click', () => (miniOpen() ? closeMini(true) : showWin()));
 
-    // Premier lancement => écran de choix ; ensuite on rouvre la (ou les) dernière(s) plateforme(s).
-    const saved = tabsMode()
+    // Au lancement : seulement l'écran d'accueil, aucun site ne démarre tout seul (pas de live Twitch ou
+    // de vidéo qui se lance au démarrage de Windows). En option : rouvrir les onglets de la dernière fois.
+    const saved = state.restoreTabs && tabsMode()
       ? (state.tabs || []).map(x => (typeof x === 'string' ? { id: x } : x)).filter(x => x && byId(x.id))
       : [];
     if (saved.length) {
@@ -1300,8 +1307,10 @@ if (!app.requestSingleInstanceLock()) {
       const opened = saved.map(x => open(x.id, { url: x.url || undefined, background: true }));
       const act = opened[Math.min(idx, opened.length - 1)];
       if (act && act.host) { act.host.activate(act); showHost(act.host); }
+    } else if (state.restoreTabs && byId(state.platform)) {
+      open(state.platform);
     } else {
-      open(byId(state.platform) ? state.platform : null);
+      open(null);
     }
     startHidden = false;
     setupUpdater();

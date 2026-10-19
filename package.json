@@ -1,7 +1,7 @@
 {
   "name": "studio-suite",
   "productName": "Studio",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Platine (musique), Pellicule (vidéo) et Studio (tout) : un seul code pour trois applis desktop stables.",
   "main": "src/main.js",
   "author": "BlancheLaGoat",
