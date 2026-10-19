@@ -11,8 +11,9 @@ let adskip = false;
 let twitchMode = 'vaft';
 const isYouTube = /(^|\.)youtube\.com$/.test(location.hostname);
 const isTwitch = /(^|\.)twitch\.tv$/.test(location.hostname);
+const isX = /(^|\.)(x|twitter)\.com$/.test(location.hostname);
 try {
-  if (isYouTube || isTwitch) {
+  if (isYouTube || isTwitch || isX) {
     const cfg = ipcRenderer.sendSync('studio:adskip') || {};
     adskip = !!cfg.on;
     twitchMode = cfg.twitchMode || 'vaft';
@@ -82,6 +83,62 @@ if (adskip && isTwitch) webFrame.executeJavaScript(`(() => {
       }
     }
   }, 300);
+})();`);
+
+// ---------------- Anti-pub X (Twitter) ----------------
+// Les pubs sont des posts « sponsorisés » glissés dans le fil (mention « Ad », « Sponsorisé »…),
+// des tendances « sponsorisées » et des encarts Premium. On les masque sans toucher au reste du site.
+if (adskip && isX) webFrame.executeJavaScript(`(() => {
+  if (window.__studioXAds) return;
+  window.__studioXAds = true;
+  // mentions affichées par X sur un post sponsorisé, selon la langue
+  const LABELS = new Set(['Ad', 'Ads', 'Promoted', 'Sponsored', 'Sponsorisé', 'Sponsorisée', 'Publicité', 'Promu', 'Promue',
+    'Anzeige', 'Gesponsert', 'Patrocinado', 'Promocionado', 'Publicidad', 'Sponsorizzato', 'Annuncio', 'Promovido']);
+  const PREFIX = /^(Promoted by|Sponsored by|Sponsorisé par|Promu par|Gesponsert von|Promocionado por|Patrocinado por)\\b/i;
+
+  const CSS = [
+    '[data-testid="sidebarColumn"] [aria-label*="Premium"]',
+    '[data-testid="sidebarColumn"] a[href="/i/premium_sign_up"]',
+    '[data-testid="super-upsell-UpsellCardRenderProperties"]',
+    '[data-testid="cellInnerDiv"]:has([data-testid="placementTracking"] [href*="/i/premium"])',
+  ].join(',') + '{display:none!important}' +
+    '.studio-x-ad{display:none!important}';
+  const addStyle = () => {
+    if (document.getElementById('studio-x-ads')) return;
+    const st = document.createElement('style');
+    st.id = 'studio-x-ads';
+    st.textContent = CSS;
+    (document.head || document.documentElement).appendChild(st);
+  };
+  if (document.documentElement) addStyle();
+  document.addEventListener('DOMContentLoaded', addStyle);
+
+  // une cellule du fil est une pub si un petit texte (sans enfant) vaut exactement « Ad », « Sponsorisé »…
+  const isAd = cell => {
+    for (const el of cell.querySelectorAll('span, div')) {
+      if (el.childElementCount) continue;
+      const t = (el.textContent || '').trim();
+      if (t.length > 40 || !t) continue;
+      if (LABELS.has(t) || PREFIX.test(t)) return true;
+    }
+    return false;
+  };
+  const scan = () => {
+    for (const cell of document.querySelectorAll('[data-testid="cellInnerDiv"]:not([data-studio-x])')) {
+      // on attend que le post soit rempli avant de décider
+      if (!cell.querySelector('article, [data-testid="trend"], [data-testid="UserCell"]')) continue;
+      cell.dataset.studioX = '1';
+      if (isAd(cell)) {
+        // on vide la cellule : X recalcule la hauteur du fil, sans trou
+        for (const child of cell.children) child.classList.add('studio-x-ad');
+      }
+    }
+  };
+  let queued = false;
+  const queue = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; scan(); }); } };
+  new MutationObserver(queue).observe(document, { childList: true, subtree: true });
+  document.addEventListener('DOMContentLoaded', scan);
+  setInterval(scan, 1500);
 })();`);
 
 // ---------------- Anti-pub YouTube ----------------

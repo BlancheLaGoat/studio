@@ -90,6 +90,7 @@ module.exports = [
     // t.co (liens raccourcis) n'est volontairement pas listé : les liens partagés s'ouvrent dans ton navigateur
     domains: ['x.com', 'twitter.com', 'twimg.com'],
     multi: true,
-    note: 'La connexion Google peut être refusée : utilise e-mail + mot de passe',
+    adblock: true,
+    note: 'Pubs masquées · la connexion Google peut être refusée',
   },
 ];

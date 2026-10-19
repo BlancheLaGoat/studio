@@ -165,7 +165,7 @@ function setTwitchAds(mode) {
   buildTrayMenu();
 }
 
-// Active / coupe l'anti-pub sur YouTube, YouTube Music et Twitch.
+// Active / coupe l'anti-pub sur YouTube, YouTube Music, Twitch et X.
 async function setAdblock(on) {
   state.adblock = on;
   saveState();
@@ -1203,7 +1203,7 @@ function buildTrayMenu() {
     },
     hasAds && { type: 'separator' },
     hasAds && {
-      label: 'Bloquer les pubs (YouTube, Twitch)',
+      label: `Bloquer les pubs (${PLATFORMS.filter(p => p.adblock).map(p => p.name.replace(/ \(.*\)/, '')).join(', ')})`,
       type: 'checkbox',
       checked: state.adblock !== false,
       click: item => setAdblock(item.checked),

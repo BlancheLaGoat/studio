@@ -29,7 +29,7 @@ Chaque appli fait tourner le **site officiel** de chaque plateforme, avec le mod
 
 **Dans toutes les applis**
 - **Bouton Accueil**, **Retour / Suivant / Actualiser**, **mode onglets** optionnel avec onglets détachables dans leur propre fenêtre, et plusieurs onglets YouTube, Twitch ou X.
-- **YouTube sans pubs** (son coupé, accéléré, clic automatique sur « Passer ») et **Twitch sans pubs** ([TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions), MIT).
+- **YouTube sans pubs** (son coupé, accéléré, clic automatique sur « Passer »), **Twitch sans pubs** ([TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions), MIT) et **X sans pubs** (posts et tendances sponsorisés masqués).
 - **Lecture / pause** dans la barre et dans l'aperçu de la barre des tâches, touches multimédia.
 - **Ne plante plus** : une page qui crashe ou fige est relancée là où tu étais ; une page de connexion ou un cache abîmé est réparé tout seul.
 - **Discord**, **mises à jour automatiques**, **lancement au démarrage de Windows** (l'appli s'ouvre sur l'accueil : aucun live ni vidéo ne démarre tout seul ; option « Rouvrir mes onglets au lancement » dans le menu de l'icône).
