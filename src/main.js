@@ -201,6 +201,10 @@ class Host {
       if (this.main || this.floating) saveState();
     };
     this.win.on('resize', () => { this.layout(); moved(); });
+    // filet de sécurité contre l'écran noir : on force la page à se redessiner quand la fenêtre réapparaît
+    for (const ev of ['show', 'restore', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen', 'focus']) {
+      this.win.on(ev, () => this.repaint());
+    }
     this.win.on('move', moved);
     this.win.on('leave-full-screen', () => {   // sortie du plein écran par Windows (Échap, Win+↓…)
       if (this.windowFullscreen && !this.fullscreenTab) { this.windowFullscreen = false; this.layout(); this.updateBar(); }
@@ -234,6 +238,24 @@ class Host {
     hosts.add(this);
     this.layout();
     setImmediate(() => updateThumbar(true));
+  }
+
+  // Redessine la page affichée : on la décale d'un pixel puis on la remet en place (comme un redimensionnement,
+  // invisible à l'œil), et on demande à Chromium de repeindre.
+  repaint() {
+    clearTimeout(this._repaintTimer);
+    this._repaintTimer = setTimeout(() => {
+      if (this.win.isDestroyed()) return;
+      const views = [this.bar, this.active && this.active.view].filter(v => v && !v.webContents.isDestroyed());
+      for (const v of views) {
+        const b = v.getBounds();
+        if (b.width < 2 || b.height < 2) continue;
+        v.setBounds({ ...b, width: b.width - 1 });
+        v.setBounds(b);
+        try { v.webContents.invalidate(); } catch {}
+      }
+      this.layout();
+    }, 60);
   }
 
   barVisible() { return !this.fullscreenTab; } // la barre porte le bouton Accueil, même en mode classique
@@ -282,6 +304,7 @@ class Host {
     // l'onglet vidéo qu'on quitte se met en pause (pas de son en fond), sauf si l'option est coupée ; la musique continue
     if (left && left.p && !isMusic(left.p) && alive(left) && state.pauseOnSwitch) pauseTab(left);
     for (const t of this.tabs) t.view.setVisible(t === tab);
+    this.repaint();
     if (!this.win.isDestroyed()) {
       this.win.setTitle(tab.p ? `${tab.p.name} — ${APP_NAME}` : APP_NAME);
       this.win.setBackgroundColor(tab.p ? tab.p.color : '#0b0b0d');
@@ -819,6 +842,7 @@ function setFloating(host, on) {
   }
   host.layout();
   host.updateBar();
+  host.repaint();
   buildTrayMenu();
 }
 
@@ -1276,6 +1300,9 @@ if (!app.requestSingleInstanceLock()) {
 
   // Touches multimédia + contrôles Windows (SMTC).
   app.commandLine.appendSwitch('enable-features', 'HardwareMediaKeyHandling,MediaSessionService');
+  // Windows : Chromium croit parfois la fenêtre cachée (« occlusion ») et arrête de dessiner la page,
+  // ce qui laisse un écran noir jusqu'à ce qu'on redimensionne. On coupe cette détection.
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
   // On garde les « client hints » (sec-ch-ua, navigator.userAgentData) : Netflix et Disney+ coupent la connexion
   // quand un navigateur se dit Chrome sans les envoyer. Ils annoncent la même version que le user agent.
   // Seules les pages de connexion Google les perdent (voir sessionFor), pour ne pas trahir l'appli.
@@ -1291,6 +1318,11 @@ if (!app.requestSingleInstanceLock()) {
     if (components && components.whenReady) await components.whenReady(); // module Widevine prêt (Electron Castlabs)
     log(`Widevine prêt : ${components ? JSON.stringify(components.status()) : 'n/a'} — v${app.getVersion()}`);
     loadState();
+
+    // écran branché / débranché, changement d'échelle : on redessine toutes les fenêtres
+    screen.on('display-metrics-changed', () => { for (const h of hosts) h.repaint(); });
+    screen.on('display-added', () => { for (const h of hosts) h.repaint(); });
+    screen.on('display-removed', () => { for (const h of hosts) h.repaint(); });
 
     tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 16 }));
     tray.on('click', () => (miniOpen() ? closeMini(true) : showWin()));
