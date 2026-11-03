@@ -8,7 +8,7 @@
 //  - mode onglets : plusieurs plateformes ouvertes en même temps, chaque onglet peut être détaché dans sa fenêtre.
 
 const {
-  app, components, BaseWindow, BrowserWindow, WebContentsView, Tray, Menu, nativeImage, shell, session, ipcMain,
+  app, components, BaseWindow, BrowserWindow, WebContentsView, desktopCapturer, Tray, Menu, nativeImage, shell, session, ipcMain,
   dialog, screen, clipboard,
 } = require('electron');
 const path = require('path');
@@ -115,8 +115,12 @@ function sessionFor(p) {
 
   s.setUserAgent(CHROME_UA);
   s.setPermissionRequestHandler((_wc, perm, cb) => {
-    cb(['mediaKeySystem', 'notifications', 'fullscreen', 'clipboard-sanitized-write'].includes(perm));
+    // micro / caméra / partage d'écran : seulement pour les plateformes de vocal (Discord)
+    const voice = p.voice ? ['media', 'display-capture', 'speaker-selection'] : [];
+    cb(['mediaKeySystem', 'notifications', 'fullscreen', 'clipboard-sanitized-write', ...voice].includes(perm));
   });
+  if (p.voice) screenShare(s);
+  if (p.id === 'primevideo') primeAdRules(s);
   // Google bloque les connexions dans les applis Electron : sur ses pages on se présente comme Firefox.
   s.webRequest.onBeforeSendHeaders({ urls: ['*://accounts.google.com/*'] }, (d, cb) => {
     const h = d.requestHeaders;
@@ -125,6 +129,51 @@ function sessionFor(p) {
     cb({ requestHeaders: h });
   });
   return s;
+}
+
+// Partage d'écran (Discord) : petite liste des écrans et fenêtres, au clic.
+function screenShare(s) {
+  s.setDisplayMediaRequestHandler(async (request, cb) => {
+    let sources = [];
+    try { sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 0, height: 0 } }); } catch {}
+    if (!sources.length) return cb({});
+    const screens = sources.filter(x => x.id.startsWith('screen:'));
+    const windows = sources.filter(x => !x.id.startsWith('screen:') && x.name && !/^(Studio|Platine|Pellicule)$/.test(x.name));
+    let done = false;
+    const pick = src => { done = true; cb({ video: src, ...(request.audioRequested ? { audio: 'loopback' } : {}) }); };
+    const menu = Menu.buildFromTemplate([
+      { label: 'Partager…', enabled: false },
+      ...screens.map((x, i) => ({ label: screens.length > 1 ? `Écran ${i + 1}` : 'Tout l\'écran', click: () => pick(x) })),
+      { type: 'separator' },
+      ...windows.slice(0, 25).map(x => ({ label: x.name.length > 60 ? x.name.slice(0, 59) + '…' : x.name, click: () => pick(x) })),
+      { type: 'separator' },
+      { label: 'Annuler', click: () => { done = true; cb({}); } },
+    ]);
+    const win = BaseWindow.getFocusedWindow() || (mainHost && mainHost.win);
+    menu.popup({ window: win, callback: () => setTimeout(() => { if (!done) cb({}); }, 0) });
+  });
+}
+
+// Prime Video : règles réseau reprises de uBlock Origin (uAssets, filters-2025.txt).
+//  - les adresses qui servent les pubs sont bloquées ;
+//  - on demande au serveur la lecture sans « points de coupure » pub (CuepointPlaylist, deviceAdInsertionTypeOverride).
+// Le reste (retrait des coupures dans les réponses du lecteur) est fait dans la page, voir media-preload.js.
+function primeAdRules(s) {
+  s.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (d, cb) => {
+    if (state.adblock === false) return cb({});
+    const u = d.url;
+    if (/^https?:\/\/[^/]*amazon\.dev\/(getVideoAds|getAds)/i.test(u)) return cb({ cancel: true });
+    if (/\/GetPlaybackResources\?/.test(u) && (/%2CCuepointPlaylist/i.test(u) || /[?&]deviceAdInsertionTypeOverride=/.test(u))) {
+      let n = u.replace(/%2CCuepointPlaylist/gi, '');
+      try {
+        const url = new URL(n);
+        url.searchParams.delete('deviceAdInsertionTypeOverride');
+        n = url.toString();
+      } catch {}
+      if (n !== u) return cb({ redirectURL: n });
+    }
+    cb({});
+  });
 }
 
 // La page YouTube/Twitch demande au démarrage si l'anti-pub est actif (voir media-preload.js).
@@ -165,7 +214,7 @@ function setTwitchAds(mode) {
   buildTrayMenu();
 }
 
-// Active / coupe l'anti-pub sur YouTube, YouTube Music, Twitch et X.
+// Active / coupe l'anti-pub sur YouTube, YouTube Music, Twitch, X et Prime Video.
 async function setAdblock(on) {
   state.adblock = on;
   saveState();
@@ -302,7 +351,7 @@ class Host {
     if (left) this.previous = left;
     this.active = tab;
     // l'onglet vidéo qu'on quitte se met en pause (pas de son en fond), sauf si l'option est coupée ; la musique continue
-    if (left && left.p && !isMusic(left.p) && alive(left) && state.pauseOnSwitch) pauseTab(left);
+    if (left && left.p && !isMusic(left.p) && !left.p.noPause && alive(left) && state.pauseOnSwitch) pauseTab(left);
     for (const t of this.tabs) t.view.setVisible(t === tab);
     this.repaint();
     if (!this.win.isDestroyed()) {
@@ -861,7 +910,7 @@ function pauseTab(t) {
   t.view.webContents.executeJavaScript('window.__studio && window.__studio.state().playing && window.__studio.action("pause")', true).catch(() => {});
 }
 function pauseAll() {
-  for (const t of allTabs()) if (t.p && !isMusic(t.p) && alive(t)) pauseTab(t);
+  for (const t of allTabs()) if (t.p && !isMusic(t.p) && !t.p.noPause && alive(t)) pauseTab(t);
   setTimeout(poll, 300);
 }
 
@@ -872,7 +921,7 @@ function pauseAll() {
 // ------------------------------------------------------------------
 let lastBarNp = null;
 async function poll() {
-  const tabs = allTabs().filter(t => t.p && alive(t));
+  const tabs = allTabs().filter(t => t.p && !t.p.noMedia && alive(t)); // Discord (vocal) n'est pas « en lecture »
   const states = await Promise.all(tabs.map(async t => {
     try { return await t.view.webContents.executeJavaScript('window.__studio ? window.__studio.state() : null', true); }
     catch { return null; }

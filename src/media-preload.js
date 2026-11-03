@@ -12,8 +12,9 @@ let twitchMode = 'vaft';
 const isYouTube = /(^|\.)youtube\.com$/.test(location.hostname);
 const isTwitch = /(^|\.)twitch\.tv$/.test(location.hostname);
 const isX = /(^|\.)(x|twitter)\.com$/.test(location.hostname);
+const isPrime = /(^|\.)primevideo\.com$/.test(location.hostname) || /(^|\.)amazon\.(com|fr|de|co\.uk|co\.jp|es|it)$/.test(location.hostname);
 try {
-  if (isYouTube || isTwitch || isX) {
+  if (isYouTube || isTwitch || isX || isPrime) {
     const cfg = ipcRenderer.sendSync('studio:adskip') || {};
     adskip = !!cfg.on;
     twitchMode = cfg.twitchMode || 'vaft';
@@ -137,6 +138,100 @@ if (adskip && isX) webFrame.executeJavaScript(`(() => {
   new MutationObserver(queue).observe(document, { childList: true, subtree: true });
   document.addEventListener('DOMContentLoaded', scan);
   setInterval(scan, 1500);
+})();`);
+
+// ---------------- Anti-pub Prime Video ----------------
+// Mêmes règles que uBlock Origin (uAssets) : avant que le lecteur ne les lise, on retire de ses réponses
+//  - les coupures pub annoncées dans les JSON (json-prune) ;
+//  - les « périodes » pub du manifeste vidéo .mpd (xml-prune).
+// La vidéo elle-même et sa protection (DRM) ne sont pas touchées : seules les pubs disparaissent du programme.
+if (adskip && isPrime) webFrame.executeJavaScript(`(() => {
+  if (window.__studioPrimeAds) return;
+  window.__studioPrimeAds = true;
+  try { window.ue_adb_chk = 1; } catch (e) {}
+
+  // ---- json-prune
+  const PATHS = ['cuepointPlaylist', 'vodPlaybackUrls.result.playbackUrls.cuepoints',
+    'vodPlaylistedPlaybackUrls.result.playbackUrls.pauseBehavior',
+    'vodPlaylistedPlaybackUrls.result.playbackUrls.pauseAdsResolution',
+    'vodPlaylistedPlaybackUrls.result.playbackUrls.intraTitlePlaylist.[-].shouldShowOnScrubBar', 'ads'];
+  const pruneAt = (obj, parts) => {
+    if (!obj || typeof obj !== 'object') return false;
+    const [k, ...rest] = parts;
+    if (k === '[-]') {
+      let hit = false;
+      if (Array.isArray(obj)) for (const it of obj) hit = pruneAt(it, rest) || hit;
+      return hit;
+    }
+    if (!Object.prototype.hasOwnProperty.call(obj, k)) return false;
+    if (!rest.length) { delete obj[k]; return true; }
+    return pruneAt(obj[k], rest);
+  };
+  const prune = obj => {
+    if (!obj || typeof obj !== 'object') return obj;
+    for (const p of PATHS) { try { pruneAt(obj, p.split('.')); } catch (e) {} }
+    return obj;
+  };
+  const origParse = JSON.parse;
+  JSON.parse = function () { return prune(origParse.apply(this, arguments)); };
+  JSON.parse.toString = () => origParse.toString();
+  const origJson = Response.prototype.json;
+  Response.prototype.json = function () { return origJson.apply(this, arguments).then(prune); };
+
+  // ---- xml-prune (manifestes .mpd)
+  const XPATHS = [
+    { need: '[value="Ad"]', xp: '//*[name()="Period"][.//*[@value="Ad"]] | /*[name()="MPD"]/@mediaPresentationDuration | //*[name()="Period"]/@start' },
+    { need: '[value="Draper"]', xp: '//*[name()="Period"][.//*[@value="Draper"]] | /*[name()="MPD"]/@mediaPresentationDuration | //*[name()="Period"]/@start' },
+    { need: '', xp: '//*[name()="Period"][.//*[name()="BaseURL" and contains(text(),"/interstitial/")]] | /*[name()="MPD"][.//*[name()="BaseURL" and contains(text(),"/interstitial/")]]/@mediaPresentationDuration | /*[name()="MPD"][.//*[name()="BaseURL" and contains(text(),"/interstitial/")]]/*[name()="Period"]/@start' },
+  ];
+  const pruneXml = text => {
+    if (typeof text !== 'string' || text.indexOf('<MPD') < 0) return text;
+    try {
+      const doc = new DOMParser().parseFromString(text, 'text/xml');
+      if (doc.querySelector('parsererror')) return text;
+      let changed = false;
+      for (const { need, xp } of XPATHS) {
+        if (need && !doc.querySelector(need)) continue;
+        const res = doc.evaluate(xp, doc, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
+        for (let i = 0; i < res.snapshotLength; i++) {
+          const n = res.snapshotItem(i);
+          if (n.nodeType === 2) n.ownerElement.removeAttribute(n.nodeName); else n.remove();
+          changed = true;
+        }
+      }
+      return changed ? new XMLSerializer().serializeToString(doc) : text;
+    } catch (e) { return text; }
+  };
+  const isMpd = url => /\\.mpd(\\?|$)/i.test(String(url || ''));
+  const origFetch = window.fetch;
+  window.fetch = function (input) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const p = origFetch.apply(this, arguments);
+    if (!isMpd(url)) return p;
+    return p.then(r => r.clone().text().then(t => {
+      const out = pruneXml(t);
+      return out === t ? r : new Response(out, { status: r.status, statusText: r.statusText, headers: r.headers });
+    }).catch(() => r));
+  };
+  const X = XMLHttpRequest.prototype;
+  const desc = n => Object.getOwnPropertyDescriptor(X, n);
+  const rt = desc('responseText'), rs = desc('response');
+  const cache = new WeakMap();
+  const pruned = xhr => {
+    if (cache.has(xhr)) return cache.get(xhr);
+    const t = rt.get.call(xhr);
+    const out = pruneXml(t);
+    if (xhr.readyState === 4) cache.set(xhr, out);
+    return out;
+  };
+  Object.defineProperty(X, 'responseText', { configurable: true, get() {
+    return isMpd(this.responseURL) && this.readyState === 4 ? pruned(this) : rt.get.call(this);
+  } });
+  Object.defineProperty(X, 'response', { configurable: true, get() {
+    const type = this.responseType;
+    if ((type === '' || type === 'text') && isMpd(this.responseURL) && this.readyState === 4) return pruned(this);
+    return rs.get.call(this);
+  } });
 })();`);
 
 // ---------------- Anti-pub YouTube ----------------

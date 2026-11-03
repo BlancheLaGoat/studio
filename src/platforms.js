@@ -61,6 +61,8 @@ module.exports = [
     id: 'primevideo', kind: 'video', name: 'Prime Video', color: '#0b1a26', accent: '#1fa8ff',
     url: 'https://www.primevideo.com/',
     domains: ['primevideo.com', 'amazon.fr', 'amazon.com', 'amazon.co.uk', 'amazon.de', 'media-amazon.com', 'aiv-cdn.net', 'aiv-delivery.net'],
+    adblock: true,
+    note: 'Pubs retirées (règles de uBlock Origin)',
   },
   {
     id: 'viki', kind: 'video', name: 'Viki', color: '#06222a', accent: '#1ec2e8',
@@ -83,6 +85,16 @@ module.exports = [
     adblock: true,
     multi: true, // plusieurs onglets possibles
     note: 'Pubs bloquées (TwitchAdSolutions)',
+  },
+  {
+    id: 'discord', kind: 'social', name: 'Discord', color: '#1e1f3b', accent: '#5865f2',
+    url: 'https://discord.com/app',
+    domains: ['discord.com', 'discordapp.com', 'discord.gg', 'discordapp.net', 'discord.media', 'discordcdn.com', 'hcaptcha.com'],
+    // vocal et partage d'écran autorisés ; jamais mis en pause ; ignoré par la barre « en cours de lecture »
+    voice: true,
+    noPause: true,
+    noMedia: true,
+    note: 'Messages, vocal et partage d\'écran',
   },
   {
     id: 'x', kind: 'social', name: 'X (Twitter)', color: '#101214', accent: '#e7e9ea',
