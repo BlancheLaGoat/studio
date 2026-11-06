@@ -82,6 +82,13 @@
   #attachAll:hover { background: #ffffff16; }
   body.detached #attachAll { display: inline-flex; align-items: center; gap: 6px; }
   .hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  /* volume général : s'applique à tous les sites */
+  #vol { display: flex; align-items: center; gap: 4px; padding: 0 4px; }
+  #vol .tool { width: 26px; height: 26px; }
+  #volRange { -webkit-appearance: none; appearance: none; width: 84px; height: 4px; border-radius: 2px; cursor: pointer;
+    background: linear-gradient(to right, var(--text) var(--p, 100%), #ffffff26 var(--p, 100%)); outline: none; }
+  #volRange::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--text); border: 0; }
+  #volVal { font-size: 11px; color: var(--muted); width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
   .tool {
     flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
     background: none; border: 0; color: var(--muted); cursor: pointer;
@@ -123,6 +130,13 @@
         <span class="t" id="npTitle"></span>
         <span class="a" id="npArtist"></span>
       </div>
+    </div>
+    <div id="vol" title="Volume général : s'applique à tous les sites (molette pour régler)">
+      <button class="tool" id="volBtn" title="Couper / remettre le son de toute l'appli">
+        <svg id="volIco" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+      </button>
+      <input type="range" id="volRange" min="0" max="100" step="1" value="100">
+      <span id="volVal">100</span>
     </div>
     <span class="hint" id="hint"></span>
     <button class="tool" id="floatBtn" title="Mode flottant : petite fenêtre toujours au premier plan (Ctrl+Maj+F)">
@@ -317,7 +331,26 @@
   $('floatPlay').onclick = () => window.tabs.media('toggle');
   $('fsBtn').onclick = () => window.tabs.fullscreen();
 
-  window.tabs.onState(s => { st = s; render(); renderNp(); });
+  // ---- volume général
+  const ICO_ON = '<path d="M11 5L6 9H2v6h4l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>';
+  const ICO_LOW = '<path d="M11 5L6 9H2v6h4l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>';
+  const ICO_OFF = '<path d="M11 5L6 9H2v6h4l5 4z" fill="currentColor"/><path d="M22 9l-6 6M16 9l6 6"/>';
+  let volDragging = false;
+  const showVol = (v, muted) => {
+    const r = $('volRange');
+    if (!volDragging) r.value = v;
+    r.style.setProperty('--p', (muted ? 0 : v) + '%');
+    $('volVal').textContent = muted ? '—' : v;
+    $('volIco').innerHTML = muted || v === 0 ? ICO_OFF : v < 50 ? ICO_LOW : ICO_ON;
+    $('volBtn').title = muted ? 'Remettre le son' : 'Couper le son de toute l\'appli';
+  };
+  const sendVol = v => { v = Math.max(0, Math.min(100, Math.round(v))); showVol(v, false); window.tabs.volume(v); };
+  $('volRange').addEventListener('input', e => { volDragging = true; sendVol(+e.target.value); });
+  $('volRange').addEventListener('change', () => { volDragging = false; });
+  $('vol').addEventListener('wheel', e => { e.preventDefault(); sendVol(+$('volRange').value + (e.deltaY < 0 ? 5 : -5)); }, { passive: false });
+  $('volBtn').onclick = () => window.tabs.volMute();
+
+  window.tabs.onState(s => { st = s; render(); renderNp(); if (s.volume) showVol(s.volume.level, s.volume.muted); });
 </script>
 </body>
 </html>

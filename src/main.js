@@ -85,10 +85,14 @@ function log(msg) {
   console.log(line.trim());
 }
 
+const VOLNORM_DEFAULTS = { enabled: true, target: -16, maxBoost: 12, maxCut: 30, speed: 'normal', compression: 'light' };
 function loadState() {
   try { state = { lastUrls: {}, ...JSON.parse(fs.readFileSync(stateFile(), 'utf8')) }; } catch {}
   // réglages par défaut propres à l'édition (Platine : la musique et les vidéos continuent, Pellicule/Studio : pause)
   for (const k of ['pauseOnSwitch', 'pauseOnClose']) if (state[k] === undefined) state[k] = EDITION.defaults[k];
+  // égaliseur de volume (mêmes réglages par défaut que l'extension) et volume général
+  state.volnorm = { ...VOLNORM_DEFAULTS, ...(state.volnorm || {}) };
+  state.master = { level: 100, muted: false, ...(state.master || {}) };
 }
 
 function saveState() {
@@ -177,6 +181,41 @@ function primeAdRules(s) {
 }
 
 // La page YouTube/Twitch demande au démarrage si l'anti-pub est actif (voir media-preload.js).
+// ---- Égaliseur de volume + volume général
+ipcMain.on('studio:volnorm', e => { e.returnValue = { ...state.volnorm, master: state.master }; });
+function broadcast(channel, payload) {
+  for (const t of allTabs()) if (t.p && alive(t)) { try { t.view.webContents.send(channel, payload); } catch {} }
+}
+function setVolnorm(patch) {
+  state.volnorm = { ...state.volnorm, ...patch };
+  saveState();
+  broadcast('studio:volnorm', state.volnorm);
+  buildTrayMenu();
+}
+let masterSaveTimer = null;
+function setMaster(patch) {
+  state.master = { ...state.master, ...patch };
+  broadcast('studio:mastervol', state.master);
+  for (const h of hosts) h.updateBar();
+  clearTimeout(masterSaveTimer);
+  masterSaveTimer = setTimeout(saveState, 500);
+}
+ipcMain.on('tabs:volume', (_e, v) => {
+  const level = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+  setMaster({ level, muted: false });
+});
+ipcMain.on('tabs:volume-mute', () => setMaster({ muted: !state.master.muted }));
+// petit journal venant des pages (Tidal : ReplayGain trouvé, volume ajusté), limité pour ne pas le remplir
+const pageLogs = new Map();
+ipcMain.on('studio:log', (e, msg) => {
+  const id = e.sender.id, now = Date.now();
+  const r = pageLogs.get(id) || { t: now, n: 0 };
+  if (now - r.t > 60000) { r.t = now; r.n = 0; }
+  if (++r.n > 20) return;
+  pageLogs.set(id, r);
+  log(String(msg).slice(0, 200));
+});
+
 ipcMain.on('studio:adskip', e => { e.returnValue = { on: state.adblock !== false, twitchMode: state.twitchAds || 'vaft' }; });
 // YouTube : vrai clic de souris sur le bouton « Passer » (coordonnées envoyées par la page).
 const lastSkipClick = new WeakMap();
@@ -384,6 +423,7 @@ class Host {
       tabsMode: tabsMode(),
       floating: !!this.floating,
       canFloat: !!FEAT.floating,
+      volume: state.master,
       fullscreen: !!this.windowFullscreen,
       active: this.active ? this.active.key : null,
       nav: navState(this),
@@ -1274,6 +1314,27 @@ function buildTrayMenu() {
         { label: 'Aperçu dans le navigateur', enabled: overlay.running(), click: () => shell.openExternal(`${OVERLAY_URL}?pause=show`) },
       ],
     },
+    {
+      label: 'Égaliseur de volume',
+      submenu: [
+        { label: 'Activé (même volume pour tous les morceaux et vidéos)', type: 'checkbox', checked: !!state.volnorm.enabled, click: i => setVolnorm({ enabled: i.checked }) },
+        { type: 'separator' },
+        { label: 'Volume cible', enabled: false },
+        ...[[-14, 'Fort (comme YouTube)'], [-16, 'Normal'], [-20, 'Calme'], [-23, 'Très calme']].map(([v, l]) => ({
+          label: `${l}  (${v})`, type: 'radio', checked: state.volnorm.target === v, click: () => setVolnorm({ target: v }),
+        })),
+        { type: 'separator' },
+        { label: 'Compression (YouTube, Twitch…)', enabled: false },
+        ...[['off', 'Aucune'], ['light', 'Légère'], ['strong', 'Forte (le soir)']].map(([v, l]) => ({
+          label: l, type: 'radio', checked: state.volnorm.compression === v, click: () => setVolnorm({ compression: v }),
+        })),
+        { type: 'separator' },
+        { label: 'Réactivité', enabled: false },
+        ...[['slow', 'Lente (films)'], ['normal', 'Normale'], ['fast', 'Rapide (clips, pubs)']].map(([v, l]) => ({
+          label: l, type: 'radio', checked: state.volnorm.speed === v, click: () => setVolnorm({ speed: v }),
+        })),
+      ],
+    },
     hasAds && { type: 'separator' },
     hasAds && {
       label: `Bloquer les pubs (${PLATFORMS.filter(p => p.adblock).map(p => p.name.replace(/ \(.*\)/, '')).join(', ')})`,
@@ -1416,7 +1477,7 @@ process.on('uncaughtException', err => log(`Exception non gérée : ${err.stack 
 if (process.env.STUDIO_TEST) {
   global.__studioTest = {
     open, detach, attach, closeTab, setTabsMode, poll, goHome, leaveHome, goBack, goForward, reloadActive, mediaAction, npForBar,
-    setFloating, toggleWindowFullscreen, pauseAll, ua: CHROME_UA, trayLabels: () => lastTrayLabels,
+    setFloating, toggleWindowFullscreen, pauseAll, ua: CHROME_UA, trayLabels: () => lastTrayLabels, setVolnorm, setMaster,
     toggleMini, openPlaylists, edition: EDITION, platforms: PLATFORMS, discord,
     hosts: () => [...hosts], main: () => mainHost, tabs: allTabs, nowTab: () => nowTab, state: () => state,
   };

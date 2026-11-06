@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('tabs', {
   media: action => ipcRenderer.send('tabs:media', action),
   showPlaying: () => ipcRenderer.send('tabs:show-playing'),
   floating: () => ipcRenderer.send('tabs:floating'),
+  volume: v => ipcRenderer.send('tabs:volume', v),
+  volMute: () => ipcRenderer.send('tabs:volume-mute'),
   fullscreen: () => ipcRenderer.send('tabs:fullscreen'),
   detach: (key, x, y) => ipcRenderer.send('tabs:detach', key, x, y),
   attach: key => ipcRenderer.send('tabs:attach', key),
