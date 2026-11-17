@@ -51,6 +51,8 @@ module.exports = [
     id: 'netflix', kind: 'video', name: 'Netflix', color: '#1a0607', accent: '#e50914',
     url: 'https://www.netflix.com/browse',
     domains: ['netflix.com', 'nflxvideo.net', 'nflximg.net', 'nflxext.com', 'nflxso.net'],
+    adblock: true,
+    note: 'Pubs retirées (règles de uBlock Origin)',
   },
   {
     id: 'disneyplus', kind: 'video', name: 'Disney+', color: '#0b1430', accent: '#3d7bff',

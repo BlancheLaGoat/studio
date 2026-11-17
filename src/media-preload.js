@@ -12,9 +12,10 @@ let twitchMode = 'vaft';
 const isYouTube = /(^|\.)youtube\.com$/.test(location.hostname);
 const isTwitch = /(^|\.)twitch\.tv$/.test(location.hostname);
 const isX = /(^|\.)(x|twitter)\.com$/.test(location.hostname);
+const isNetflix = /(^|\.)netflix\.com$/.test(location.hostname);
 const isPrime = /(^|\.)primevideo\.com$/.test(location.hostname) || /(^|\.)amazon\.(com|fr|de|co\.uk|co\.jp|es|it)$/.test(location.hostname);
 try {
-  if (isYouTube || isTwitch || isX || isPrime) {
+  if (isYouTube || isTwitch || isX || isPrime || isNetflix) {
     const cfg = ipcRenderer.sendSync('studio:adskip') || {};
     adskip = !!cfg.on;
     twitchMode = cfg.twitchMode || 'vaft';
@@ -138,6 +139,31 @@ if (adskip && isX) webFrame.executeJavaScript(`(() => {
   new MutationObserver(queue).observe(document, { childList: true, subtree: true });
   document.addEventListener('DOMContentLoaded', scan);
   setInterval(scan, 1500);
+})();`);
+
+// ---------------- Anti-pub Netflix ----------------
+// Mêmes règles que uBlock Origin (uAssets, filters-2024.txt) : avant que le lecteur ne les lise, on retire
+//  - « result.adverts » : les coupures pub annoncées avec la vidéo ;
+//  - « data.pinotPausedPlaybackPage » : l'écran pub affiché quand on met en pause.
+// La vidéo et sa protection (DRM) ne sont pas touchées.
+if (adskip && isNetflix) webFrame.executeJavaScript(`(() => {
+  if (window.__studioNetflixAds) return;
+  window.__studioNetflixAds = true;
+  const PATHS = [['result', 'adverts'], ['data', 'pinotPausedPlaybackPage']];
+  let removed = 0;
+  const pruneOne = o => {
+    if (!o || typeof o !== 'object') return;
+    for (const [a, b] of PATHS) {
+      if (o[a] && typeof o[a] === 'object' && Object.prototype.hasOwnProperty.call(o[a], b)) { delete o[a][b]; removed++; }
+    }
+  };
+  const prune = o => { if (Array.isArray(o)) o.forEach(pruneOne); else pruneOne(o); return o; };
+  const origParse = JSON.parse;
+  JSON.parse = function () { return prune(origParse.apply(this, arguments)); };
+  JSON.parse.toString = () => origParse.toString();
+  const origJson = Response.prototype.json;
+  Response.prototype.json = function () { return origJson.apply(this, arguments).then(prune); };
+  window.__studioNetflixAdsRemoved = () => removed;
 })();`);
 
 // ---------------- Anti-pub Prime Video ----------------
